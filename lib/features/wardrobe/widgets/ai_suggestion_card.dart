@@ -286,7 +286,8 @@ class AiDisclosureDialog extends StatelessWidget {
         children: <Widget>[
           Text(
             'To suggest details, this photo is sent to Google\'s Gemini API '
-            '($modelName).',
+            '($modelName). Outfit advice also sends candidate garment details, '
+            'your occasion, weather and style preferences.',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 14),
@@ -323,8 +324,10 @@ class AiDisclosureDialog extends StatelessWidget {
   }
 
   static const List<String> _bullets = <String>[
-    'Only the image is sent. No name, email or other profile data goes with '
-        'it.',
+    'For photo analysis, only the image is sent. No name, email or other '
+        'account data goes with it.',
+    'For outfit advice, candidate garment details and request settings are '
+        'sent; account details and item IDs are not.',
     'Nothing is stored remotely by this app - the response is used once and '
         'discarded.',
     'This step is optional. You can fill the form in by hand.',

@@ -6,7 +6,9 @@ import 'package:http/http.dart' as http;
 
 import '../core/config/app_config.dart';
 import '../core/constants/vocab.dart';
+import '../models/ai_outfit_advice.dart';
 import '../models/ai_suggestion.dart';
+import '../models/recommendation.dart';
 import 'ai_service.dart';
 
 /// Real clothing analysis via the Gemini Interactions API.
@@ -31,10 +33,9 @@ import 'ai_service.dart';
 /// ## API surface churn
 ///
 /// Google replaced the older `:generateContent` endpoint with
-/// `/v1beta/interactions` for new projects, and the raw REST response shape
-/// is not fully documented (the SDKs expose `output_text` as a convenience
-/// property over an `outputs` array). [extractText] therefore tries several
-/// shapes, including the legacy one, instead of assuming a single layout.
+/// `/v1beta/interactions` for new projects. Its raw REST response exposes
+/// generated text under `steps[].content[].text`; [extractText] also tries
+/// alternate and legacy shapes for compatibility.
 /// If a future revision breaks it, the debug sheet in the add-item screen
 /// shows the raw body so the fix is a one-line change here.
 class GeminiAiService implements AiService {
@@ -157,6 +158,210 @@ class GeminiAiService implements AiService {
     }
   }
 
+  @override
+  Future<AiOutfitAdvice> recommendOutfit(
+    RecommendationRequest request,
+    List<ScoredOutfit> candidates,
+  ) async {
+    if (apiKey.trim().isEmpty) {
+      return const AiOutfitAdvice(
+        errorMessage:
+            'No API key configured. Pass --dart-define=GEMINI_API_KEY=...',
+      );
+    }
+    if (candidates.isEmpty) {
+      return const AiOutfitAdvice(
+        errorMessage:
+            'No outfit candidates are available for Gemini to review.',
+      );
+    }
+
+    final Stopwatch stopwatch = Stopwatch()..start();
+    try {
+      final http.Response response = await client
+          .post(
+            Uri.parse(endpoint),
+            headers: <String, String>{
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+              if (apiRevision != null && apiRevision!.isNotEmpty)
+                'Api-Revision': apiRevision!,
+            },
+            body: jsonEncode(buildOutfitRequestBody(request, candidates)),
+          )
+          .timeout(timeout);
+      stopwatch.stop();
+
+      if (response.statusCode != 200) {
+        return AiOutfitAdvice(
+          errorMessage: 'HTTP ${response.statusCode}. '
+              '${_hint(response.statusCode)}',
+          rawResponse: _truncate(response.body),
+          modelUsed: model,
+          elapsed: stopwatch.elapsed,
+        );
+      }
+
+      Object? decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } on FormatException catch (error) {
+        return AiOutfitAdvice(
+          errorMessage: 'Gemini returned invalid JSON: ${error.message}',
+          rawResponse: _truncate(response.body),
+          modelUsed: model,
+          elapsed: stopwatch.elapsed,
+        );
+      }
+      if (decoded is! Map) {
+        return AiOutfitAdvice(
+          errorMessage: 'Unexpected response: not a JSON object.',
+          rawResponse: _truncate(response.body),
+          modelUsed: model,
+          elapsed: stopwatch.elapsed,
+        );
+      }
+
+      final String? text = extractText(Map<String, dynamic>.from(decoded));
+      final AiOutfitAdvice? parsed =
+          text == null ? null : parseOutfitAdvice(text, candidates: candidates);
+      if (parsed == null) {
+        return AiOutfitAdvice(
+          errorMessage: 'Gemini did not return a valid selection from the '
+              'available outfit candidates.',
+          rawResponse: _truncate(text ?? response.body),
+          modelUsed: model,
+          elapsed: stopwatch.elapsed,
+        );
+      }
+      return AiOutfitAdvice(
+        selectedSignature: parsed.selectedSignature,
+        explanation: parsed.explanation,
+        rawResponse: _truncate(response.body),
+        modelUsed: model,
+        elapsed: stopwatch.elapsed,
+      );
+    } on TimeoutException {
+      return AiOutfitAdvice(
+        errorMessage: 'The request timed out after ${timeout.inSeconds}s.',
+        modelUsed: model,
+      );
+    } catch (error) {
+      return AiOutfitAdvice(
+        errorMessage: 'Request failed: $error',
+        modelUsed: model,
+      );
+    }
+  }
+
+  /// Builds a Gemini request from current conditions and rule-generated
+  /// candidates. It excludes account data and internal wardrobe item IDs.
+  Map<String, dynamic> buildOutfitRequestBody(
+    RecommendationRequest request,
+    List<ScoredOutfit> candidates,
+  ) {
+    final List<Map<String, dynamic>> candidateData = candidates
+        .map(
+          (ScoredOutfit candidate) => <String, dynamic>{
+            'option': 'outfit-${candidates.indexOf(candidate) + 1}',
+            'score': candidate.score,
+            'items': candidate.items
+                .map(
+                  (item) => <String, dynamic>{
+                    'name': item.name,
+                    'category': item.category,
+                    'color': item.primaryColor,
+                    'secondaryColor': item.secondaryColor,
+                    'style': item.styles,
+                    'tags': item.tags,
+                  },
+                )
+                .toList(),
+          },
+        )
+        .toList();
+
+    return <String, dynamic>{
+      'model': model,
+      'store': false,
+      'input': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'type': 'text',
+          'text': buildOutfitPrompt(request, candidateData),
+        },
+      ],
+    };
+  }
+
+  static String buildOutfitPrompt(
+    RecommendationRequest request,
+    List<Map<String, dynamic>> candidates,
+  ) =>
+      '''
+You are a practical personal stylist for a wardrobe app. Pick the best outfit
+for the user's occasion, environment, style, and weather from the supplied
+candidates. Consider their rule-based scores, color harmony, and appropriateness.
+Do not add or replace items. Choose exactly one supplied option.
+Return ONLY a JSON object with "selectedOption" (the option string) and a concise
+"explanation" (one or two sentences).
+
+Context:
+${jsonEncode(<String, dynamic>{
+            'occasion': request.occasion,
+            'environment': request.environment,
+            'style': request.style,
+            'weather': request.weather.summary,
+            'wind': request.weather.wind,
+            'preferredStyles': request.profile.preferredStyles,
+            'favoriteColors': request.profile.favoriteColors,
+            'avoidedColors': request.profile.avoidedColors,
+          })}
+
+Candidates:
+${jsonEncode(candidates)}
+''';
+
+  /// Validates Gemini's choice against the actual candidate set.
+  static AiOutfitAdvice? parseOutfitAdvice(
+    String text, {
+    required List<ScoredOutfit> candidates,
+  }) {
+    final String? json = firstJsonObject(text);
+    if (json == null) return null;
+    try {
+      final Object? decoded = jsonDecode(json);
+      if (decoded is! Map) return null;
+      final Map<String, dynamic> data = Map<String, dynamic>.from(decoded);
+      final Object? rawOption = data['selectedOption'];
+      final Object? rawExplanation = data['explanation'];
+      if (rawOption is! String ||
+          rawExplanation is! String ||
+          rawExplanation.trim().isEmpty) {
+        return null;
+      }
+      final int? selectedIndex = int.tryParse(
+        rawOption.startsWith('outfit-') ? rawOption.substring(7) : '',
+      );
+      if (selectedIndex == null ||
+          selectedIndex < 1 ||
+          selectedIndex > candidates.length) {
+        return null;
+      }
+      final String explanation = rawExplanation.trim();
+      return AiOutfitAdvice(
+        selectedSignature: candidates[selectedIndex - 1].signature,
+        explanation: explanation.substring(
+          0,
+          explanation.length < 500 ? explanation.length : 500,
+        ),
+      );
+    } on FormatException {
+      return null;
+    } on TypeError {
+      return null;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Request
   // ---------------------------------------------------------------------------
@@ -170,6 +375,7 @@ class GeminiAiService implements AiService {
   ) {
     return <String, dynamic>{
       'model': model,
+      'store': false,
       'input': <Map<String, dynamic>>[
         <String, dynamic>{
           'type': 'text',
@@ -241,17 +447,30 @@ Rules:
 
   /// Pulls the model's text out of a response body.
   ///
-  /// Tries, in order:
-  ///   1. `output_text` (if the REST surface exposes the SDK convenience key)
-  ///   2. `outputs[].text`, last first (the documented raw accessor is
-  ///      `outputs[-1].text`)
-  ///   3. `outputs[].content[].text`
-  ///   4. `candidates[0].content.parts[].text` (legacy generateContent)
+  /// Tries the Interactions API's `steps[].content[].text` first, then
+  /// alternate/legacy response shapes. Entries are searched newest-first so
+  /// reasoning or other preceding steps are not mistaken for the final answer.
   ///
   /// Static and public so tests can exercise every shape with no network.
   static String? extractText(Map<String, dynamic> body) {
     final Object? direct = body['output_text'];
     if (direct is String && direct.trim().isNotEmpty) return direct;
+
+    final Object? steps = body['steps'];
+    if (steps is List) {
+      for (final Object? step in steps.reversed) {
+        if (step is! Map) continue;
+        final Object? content = step['content'];
+        if (content is List) {
+          for (final Object? part in content.reversed) {
+            if (part is Map) {
+              final Object? text = part['text'];
+              if (text is String && text.trim().isNotEmpty) return text;
+            }
+          }
+        }
+      }
+    }
 
     final Object? outputs = body['outputs'];
     if (outputs is List) {
@@ -400,8 +619,8 @@ Rules:
   static String _hint(int statusCode) {
     switch (statusCode) {
       case 400:
-        return 'The request was rejected. The model name may be wrong, or '
-            'this model may not accept image input.';
+        return 'Gemini rejected the request. Expand Technical details to see '
+            'the API response.';
       case 401:
       case 403:
         return 'The API key was rejected. Check the key and that the Gemini '

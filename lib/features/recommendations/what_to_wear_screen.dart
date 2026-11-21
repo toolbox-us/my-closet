@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/vocab.dart';
 import '../../core/utils/app_utils.dart';
 import '../../core/widgets/common.dart';
+import '../../models/ai_outfit_advice.dart';
 import '../../models/feedback_entry.dart';
 import '../../models/recommendation.dart';
 import '../../models/user_profile.dart';
@@ -33,8 +34,12 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
   List<ScoredOutfit> _results = <ScoredOutfit>[];
   int _index = 0;
   bool _generated = false;
+  bool _generating = false;
+  String? _aiExplanation;
+  String? _aiError;
+  AiOutfitAdvice? _aiAdvice;
 
-  void _generate() {
+  Future<void> _generate() async {
     final List<WardrobeItem> items =
         ref.read(wardrobeControllerProvider).valueOrNull ??
             const <WardrobeItem>[];
@@ -55,13 +60,41 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
       style: _style,
     );
 
-    final List<ScoredOutfit> results =
+    final List<ScoredOutfit> candidates =
         ref.read(recommendationServiceProvider).recommend(request, limit: 5);
 
     setState(() {
-      _results = results;
+      _results = candidates;
       _index = 0;
       _generated = true;
+      _generating = candidates.isNotEmpty;
+      _aiExplanation = null;
+      _aiError = null;
+      _aiAdvice = null;
+    });
+
+    if (candidates.isEmpty) return;
+
+    final AiOutfitAdvice advice =
+        await ref.read(aiServiceProvider).recommendOutfit(request, candidates);
+    if (!mounted) return;
+
+    final int selectedIndex = candidates.indexWhere(
+      (ScoredOutfit candidate) =>
+          candidate.signature == advice.selectedSignature,
+    );
+    setState(() {
+      _generating = false;
+      _aiExplanation = advice.hasRecommendation && selectedIndex >= 0
+          ? advice.explanation
+          : null;
+      _aiError = advice.hasRecommendation && selectedIndex >= 0
+          ? null
+          : advice.errorMessage ??
+              'Gemini returned a selection that was not in the available '
+                  'outfit options.';
+      _aiAdvice = advice;
+      if (_aiExplanation != null) _index = selectedIndex;
     });
   }
 
@@ -131,19 +164,24 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
 
   void _next() {
     if (_results.length < 2) return;
-    setState(() => _index = (_index + 1) % _results.length);
+    setState(() {
+      _index = (_index + 1) % _results.length;
+      _aiExplanation = null;
+      _aiError = null;
+      _aiAdvice = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final Weather weather = ref.watch(weatherControllerProvider);
     final List<WardrobeItem> items =
         ref.watch(wardrobeControllerProvider).valueOrNull ??
             const <WardrobeItem>[];
 
-    final ScoredOutfit? current =
-        _results.isEmpty ? null : _results[_index.clamp(0, _results.length - 1)];
+    final ScoredOutfit? current = _results.isEmpty
+        ? null
+        : _results[_index.clamp(0, _results.length - 1)];
 
     return Scaffold(
       appBar: AppBar(title: const Text('What should I wear?')),
@@ -161,7 +199,6 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
               if (value != null) setState(() => _occasion = value);
             },
           ),
-
           const SizedBox(height: 28),
           const SectionHeader(title: 'Environment'),
           ChipSingleSelect(
@@ -171,7 +208,6 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
               if (value != null) setState(() => _environment = value);
             },
           ),
-
           const SizedBox(height: 28),
           const SectionHeader(
             title: 'Style',
@@ -183,17 +219,33 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
             allowNone: true,
             onChanged: (String? value) => setState(() => _style = value),
           ),
-
           const SizedBox(height: 28),
           const _WeatherEditor(),
-
           const SizedBox(height: 28),
           FilledButton.icon(
-            onPressed: items.isEmpty ? null : _generate,
-            icon: const Icon(Icons.auto_awesome),
-            label: Text(_generated ? 'Regenerate' : 'Generate Outfit'),
+            onPressed: items.isEmpty || _generating ? null : _generate,
+            icon: _generating
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.auto_awesome),
+            label: Text(
+              _generating
+                  ? 'Asking Gemini...'
+                  : (_generated ? 'Regenerate' : 'Generate Outfit'),
+            ),
           ),
-
+          const SizedBox(height: 8),
+          Text(
+            'Gemini receives this occasion, weather, style preferences and '
+            'candidate garment details to choose an outfit. Account details '
+            'and item IDs are not sent.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
           if (items.isEmpty) ...<Widget>[
             const SizedBox(height: 12),
             Text(
@@ -204,9 +256,81 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
               ),
             ),
           ],
-
           if (_generated) ...<Widget>[
             const SizedBox(height: 32),
+            if (_aiError != null)
+              AppCard(
+                color: theme.colorScheme.errorContainer,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Icon(
+                          Icons.cloud_off_outlined,
+                          color: theme.colorScheme.onErrorContainer,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Gemini could not personalize this result. '
+                            'Showing the local rule-based recommendation.\n'
+                            '$_aiError',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onErrorContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_aiAdvice?.modelUsed != null ||
+                        _aiAdvice?.rawResponse != null) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Theme(
+                        data: theme.copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          childrenPadding: EdgeInsets.zero,
+                          title: Text(
+                            'Technical details',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onErrorContainer,
+                            ),
+                          ),
+                          children: <Widget>[
+                            if (_aiAdvice?.modelUsed != null)
+                              _AiDiagnosticBlock(
+                                label: 'Model',
+                                value: _aiAdvice!.modelUsed!,
+                              ),
+                            if (_aiAdvice?.rawResponse != null)
+                              _AiDiagnosticBlock(
+                                label: 'Gemini response',
+                                value: _aiAdvice!.rawResponse!,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            if (_aiExplanation != null) ...<Widget>[
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const SectionHeader(
+                      title: "Gemini's pick",
+                      subtitle: 'Chosen from outfits made with your wardrobe.',
+                    ),
+                    Text(_aiExplanation!, style: theme.textTheme.bodyMedium),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             if (current == null)
               const EmptyView(
                 icon: Icons.search_off,
@@ -229,6 +353,9 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
               const SizedBox(height: 10),
               ScoredOutfitCard(
                 scored: current,
+                title: _aiExplanation == null
+                    ? 'Local recommendation'
+                    : "Gemini's pick",
                 onWear: () => _wear(current),
                 onSave: () => _save(current),
                 onAnother: _results.length > 1 ? _next : null,
@@ -237,6 +364,41 @@ class _WhatToWearScreenState extends ConsumerState<WhatToWearScreen> {
               ),
             ],
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AiDiagnosticBlock extends StatelessWidget {
+  const _AiDiagnosticBlock({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onErrorContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          SelectableText(
+            value,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onErrorContainer,
+              fontFamily: 'monospace',
+            ),
+          ),
         ],
       ),
     );
@@ -304,8 +466,7 @@ class _WeatherEditor extends ConsumerWidget {
     final Weather weather = ref.watch(weatherControllerProvider);
     final WeatherController controller =
         ref.read(weatherControllerProvider.notifier);
-    final List<Weather> scenarios =
-        ref.read(weatherServiceProvider).scenarios;
+    final List<Weather> scenarios = ref.read(weatherServiceProvider).scenarios;
 
     return AppCard(
       child: Column(

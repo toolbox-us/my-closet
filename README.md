@@ -96,9 +96,10 @@ The fast path through everything:
    filter sheet for colour/occasion/season and sorting.
 4. **Add item** → **Analyze with AI** — the graded AI feature. Needs a photo
    (see §4 for getting one onto an emulator) and ideally an API key.
-5. **Style tab → What should I wear?** — pick Work, drag the temperature
-   slider, press Generate. Open **Score detail** on the result to see the
-   points behind each explanation line.
+5. **Style tab → What should I wear?** — pick Work, adjust the weather and
+   press Generate. The local engine builds and scores outfit candidates;
+   Gemini picks one and explains the choice. Open **Score detail** to see
+   the deterministic points behind each explanation line.
 6. **Any item → Find Matches / Build Outfit** — the anchor item stays fixed.
    In Build Outfit, **Replace** re-solves one slot and leaves the rest.
 7. **Planner tab** — assign saved outfits to days.
@@ -113,8 +114,13 @@ appear as soon as you add them.
 
 ## 4. Enabling Gemini AI
 
-Clothing analysis always uses the Gemini service. Without a key, or if the
-request fails, the app displays an error and does not invent a suggestion.
+Clothing analysis and outfit advice use the Gemini service. For outfit advice,
+the local engine first creates valid candidates from the user's wardrobe;
+Gemini selects and explains one of those candidates and cannot add clothing
+the user does not own. Without a key, or if a request fails, the app explains
+that and shows the deterministic local recommendation instead. Gemini outfit
+requests use `store: false` so the app does not create server-side interaction
+records for the one-shot advice request.
 
 ### Get a key
 
@@ -184,7 +190,7 @@ flutter test
 |---|---|
 | `test/recommendation_test.dart` | Scoring, including the plan's worked example: an appropriate outfit must outscore shorts at 52°F in the rain. Also anchor invariants, replace-slot behaviour, determinism |
 | `test/color_rules_test.dart` | Symmetry, the plan's colour table, clash penalties |
-| `test/gemini_ai_service_test.dart` | Response parsing across four API shapes, vocabulary enforcement, every failure path. **No test touches the network** |
+| `test/gemini_ai_service_test.dart` | Response parsing across four API shapes, vocabulary enforcement, outfit option validation, and failure paths. **No test touches the network** |
 | `test/persistence_test.dart` | Hive round-trips, including close-and-reopen — the test an in-memory store would fail |
 | `test/models_test.dart` | JSON round-trips, defensive parsing, slot exclusivity |
 | `test/widget/` | Signup validation, wardrobe filtering, the AI suggestion card's accept/dismiss/unavailable paths |
@@ -225,6 +231,12 @@ InMemoryWardrobeRepository           MockAiService    ← tests only
 
 ### Deliberate decisions worth defending in the paper
 
+**Deterministic candidates, Gemini stylist.** The recommendation engine
+constructs valid outfits and calculates explainable scores locally. Gemini
+then selects among those candidates and provides a short styling explanation;
+it cannot invent wardrobe items. This keeps scoring auditable while using the
+model for subjective styling judgment.
+
 **No code generation.** Models are hand-written with `fromJson`/`toJson`
 instead of `freezed` + `json_serializable`. The project therefore builds after
 `flutter pub get` with no `build_runner` step. The cost is boilerplate; the
@@ -243,12 +255,12 @@ filtering happens in Dart — irrelevant at 35 items, a real limitation at
 filter/sort workload; it costs more setup and codegen time. That trade-off is
 Data Storage section material.
 
-**The recommendation engine is deterministic Dart, not an LLM.** AI is spent
-where a model has a genuine advantage — visual classification — and not on
-constraint scoring, which rules do better. This buys testability (§5) and
-explanations that trace to specific rules rather than model narration. Every
-line in "Why this works" is gated on a scoring dimension that actually fired,
-which is why **Score detail** can show the exact points behind it.
+**Constraint scoring is deterministic Dart, not an LLM.** Gemini is used
+where it adds value: visual classification and stylistic selection among
+locally valid outfit candidates. This buys testability (§5) and explanations
+that trace to specific rules rather than model narration. Every line in "Why
+this works" is gated on a scoring dimension that actually fired, which is why
+**Score detail** can show the exact points behind it.
 
 **Raw HTTP, not a Google SDK.** `google_generative_ai` is deprecated in favour
 of Firebase AI Logic, which needs a Firebase project — cloud infrastructure in
@@ -274,6 +286,7 @@ recommendations in July.
 | Concern | Status |
 |---|---|
 | Clothing analysis | **Real** — Gemini Interactions API; errors are shown, never replaced with canned results |
+| Outfit advice | **Real** — local rules build valid candidates; Gemini selects one and explains why. If unavailable, the UI clearly labels the local result |
 | Data storage | **Real** — `hive_ce` on-device, survives restart |
 | Photo capture | **Real** — `image_picker`, copied into app documents dir |
 | Recommendation engine | **Real** — deterministic Dart, by design not an LLM |
@@ -345,7 +358,7 @@ Profile tab → **Reset demo data**.
 | Consistent state management | Riverpod throughout; `lib/providers/providers.dart` is the only place implementations are named |
 | Local or cloud data storage | `hive_ce`, `lib/data/local/`; asserted by `test/persistence_test.dart` |
 | Clear, intuitive user flow | Signup → Onboarding → Wardrobe → Add Item → Recommend → Save → Plan |
-| AI integration, visible and functional | `lib/services/gemini_ai_service.dart`, surfaced as **Suggested Details** in Add Item |
+| AI integration, visible and functional | `lib/services/gemini_ai_service.dart`, surfaced as **Suggested Details** in Add Item and **Gemini's pick** in What Should I Wear |
 | Approved AI source | Google Gemini API (Interactions) |
 | AI relevant to the app's purpose | Removes the main friction in any wardrobe app: hand-tagging every garment |
 | Paper §B Technical Architecture | §6 above |

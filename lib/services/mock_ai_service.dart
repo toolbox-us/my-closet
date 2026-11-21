@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
+import '../models/ai_outfit_advice.dart';
 import '../models/ai_suggestion.dart';
+import '../models/recommendation.dart';
 import 'ai_service.dart';
 
 /// Canned clothing analysis.
@@ -39,4 +41,11 @@ class MockAiService implements AiService {
       isFallback: true,
     );
   }
+
+  @override
+  Future<AiOutfitAdvice> recommendOutfit(
+    RecommendationRequest request,
+    List<ScoredOutfit> candidates,
+  ) async =>
+      const AiOutfitAdvice(errorMessage: 'Gemini is not configured in tests.');
 }

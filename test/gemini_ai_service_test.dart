@@ -3,9 +3,14 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:my_closet/models/ai_outfit_advice.dart';
 import 'package:my_closet/models/ai_suggestion.dart';
+import 'package:my_closet/models/recommendation.dart';
 import 'package:my_closet/services/gemini_ai_service.dart';
 import 'package:my_closet/services/mock_ai_service.dart';
+import 'package:my_closet/services/recommendation_service.dart';
+
+import 'helpers/fixtures.dart';
 
 /// No test here touches the network.
 ///
@@ -26,11 +31,46 @@ void main() {
     );
   }
 
+  RecommendationRequest outfitRequest() => RecommendationRequest(
+        items: Fixtures.fullWardrobe,
+        profile: Fixtures.profile,
+        occasion: 'Dinner',
+        environment: 'Outdoor',
+        weather: Fixtures.rainy52,
+        style: 'Business Casual',
+      );
+
+  List<ScoredOutfit> outfitCandidates() =>
+      const LocalRecommendationService().recommend(
+        outfitRequest(),
+        limit: 3,
+      );
+
   group('extractText handles every response shape', () {
     test('output_text at the top level', () {
       expect(
         GeminiAiService.extractText(<String, dynamic>{
           'output_text': '{"category":"Tops"}',
+        }),
+        '{"category":"Tops"}',
+      );
+    });
+
+    test('Interactions API steps[].content[].text response', () {
+      expect(
+        GeminiAiService.extractText(<String, dynamic>{
+          'status': 'completed',
+          'steps': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'type': 'model_output',
+              'content': <Map<String, dynamic>>[
+                <String, dynamic>{
+                  'type': 'text',
+                  'text': '{"category":"Tops"}'
+                },
+              ],
+            },
+          ],
         }),
         '{"category":"Tops"}',
       );
@@ -257,6 +297,7 @@ void main() {
           service.buildRequestBody(fakeImage, 'image/png');
 
       expect(body['model'], 'test-model');
+      expect(body['store'], isFalse);
 
       final List<dynamic> input = body['input'] as List<dynamic>;
       expect(input.length, 2);
@@ -269,6 +310,101 @@ void main() {
       expect(image['type'], 'image');
       expect(image['mime_type'], 'image/png');
       expect(image['data'], base64Encode(fakeImage));
+    });
+
+    group('Gemini outfit advice', () {
+      test('only accepts an option that exists in the candidate list', () {
+        final List<ScoredOutfit> candidates = outfitCandidates();
+        expect(candidates, isNotEmpty);
+
+        final AiOutfitAdvice? advice = GeminiAiService.parseOutfitAdvice(
+          '{"selectedOption":"outfit-2","explanation":"The layers suit the rain."}',
+          candidates: candidates,
+        );
+        expect(advice, isNotNull);
+        expect(advice!.selectedSignature, candidates[1].signature);
+        expect(advice.explanation, 'The layers suit the rain.');
+
+        expect(
+          GeminiAiService.parseOutfitAdvice(
+            '{"selectedOption":"outfit-99","explanation":"Invented outfit."}',
+            candidates: candidates,
+          ),
+          isNull,
+        );
+      });
+
+      test('sends conditions and candidate attributes without item IDs', () {
+        final List<ScoredOutfit> candidates = outfitCandidates();
+        final Map<String, dynamic> body = serviceWith(
+                (http.Request request) async => http.Response('{}', 200))
+            .buildOutfitRequestBody(outfitRequest(), candidates);
+        final List<dynamic> input = body['input'] as List<dynamic>;
+        final String prompt =
+            (input.single as Map<String, dynamic>)['text'] as String;
+
+        expect(body['model'], 'test-model');
+        expect(body['store'], isFalse);
+        expect(prompt, contains('Dinner'));
+        expect(prompt, contains('52°F'));
+        expect(prompt, contains('outfit-1'));
+        expect(prompt, contains(Fixtures.whiteShirt.name));
+        expect(prompt, isNot(contains(Fixtures.whiteShirt.id)));
+        expect(prompt, isNot(contains('"email"')));
+      });
+
+      test('returns Gemini-selected candidate from its response', () async {
+        final List<ScoredOutfit> candidates = outfitCandidates();
+        final GeminiAiService service = serviceWith(
+          (http.Request request) async => http.Response(
+            jsonEncode(<String, dynamic>{
+              'output_text':
+                  '{"selectedOption":"outfit-2","explanation":"Rain-ready layers."}',
+            }),
+            200,
+          ),
+        );
+
+        final AiOutfitAdvice advice =
+            await service.recommendOutfit(outfitRequest(), candidates);
+        expect(advice.hasRecommendation, isTrue);
+        expect(advice.selectedSignature, candidates[1].signature);
+        expect(advice.explanation, 'Rain-ready layers.');
+        expect(advice.modelUsed, 'test-model');
+      });
+
+      test('reports errors and never accepts a made-up candidate', () async {
+        final List<ScoredOutfit> candidates = outfitCandidates();
+        final GeminiAiService service = serviceWith(
+          (http.Request request) async => http.Response(
+            jsonEncode(<String, dynamic>{
+              'output_text':
+                  '{"selectedOption":"outfit-100","explanation":"No match."}',
+            }),
+            200,
+          ),
+        );
+
+        final AiOutfitAdvice advice =
+            await service.recommendOutfit(outfitRequest(), candidates);
+        expect(advice.hasRecommendation, isFalse);
+        expect(advice.errorMessage, contains('valid selection'));
+      });
+
+      test('preserves Gemini 400 details for troubleshooting', () async {
+        final GeminiAiService service = serviceWith(
+          (http.Request request) async =>
+              http.Response('{"error":{"message":"invalid input"}}', 400),
+        );
+
+        final AiOutfitAdvice advice = await service.recommendOutfit(
+          outfitRequest(),
+          outfitCandidates(),
+        );
+        expect(advice.errorMessage, contains('HTTP 400'));
+        expect(advice.errorMessage, contains('Gemini rejected the request'));
+        expect(advice.rawResponse, contains('invalid input'));
+      });
     });
 
     test('the prompt enumerates the allowed values', () {
@@ -300,9 +436,16 @@ void main() {
       final GeminiAiService service = serviceWith(
         (http.Request request) async => http.Response(
           jsonEncode(<String, dynamic>{
-            'outputs': <Map<String, dynamic>>[
+            'status': 'completed',
+            'steps': <Map<String, dynamic>>[
               <String, dynamic>{
-                'text': '{"category":"Footwear","primaryColor":"Brown"}',
+                'type': 'model_output',
+                'content': <Map<String, dynamic>>[
+                  <String, dynamic>{
+                    'type': 'text',
+                    'text': '{"category":"Footwear","primaryColor":"Brown"}',
+                  },
+                ],
               },
             ],
           }),

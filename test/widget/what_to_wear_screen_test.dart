@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_closet/data/memory/in_memory_repositories.dart';
 import 'package:my_closet/features/recommendations/what_to_wear_screen.dart';
 import 'package:my_closet/providers/providers.dart';
+import 'package:my_closet/services/mock_ai_service.dart';
 
 import '../helpers/fixtures.dart';
 
@@ -25,6 +26,7 @@ void main() {
           feedbackRepositoryProvider.overrideWithValue(
             InMemoryFeedbackRepository(),
           ),
+          aiServiceProvider.overrideWithValue(const MockAiService()),
         ],
         child: const MaterialApp(home: WhatToWearScreen()),
       ),
@@ -35,6 +37,10 @@ void main() {
     await tester.scrollUntilVisible(generate, 240);
     await tester.tap(generate);
     await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Gemini could not personalize this result'),
+      findsOneWidget,
+    );
 
     final Finder save = find.widgetWithText(OutlinedButton, 'Save');
     await tester.scrollUntilVisible(save, 240);

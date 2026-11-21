@@ -11,7 +11,7 @@
 class AppConfig {
   AppConfig._();
 
-  /// Gemini API key. Empty when not supplied; analysis then reports a
+  /// Gemini API key. Empty when not supplied; AI features then report a
   /// configuration error instead of returning sample data.
   static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
 

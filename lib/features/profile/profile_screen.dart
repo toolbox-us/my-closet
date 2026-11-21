@@ -125,7 +125,8 @@ class ProfileScreen extends ConsumerWidget {
                 children: <Widget>[
                   const SectionHeader(
                     title: 'AI integration',
-                    subtitle: 'Status of the clothing-analysis service.',
+                    subtitle:
+                        'Status of Gemini clothing analysis and outfit advice.',
                   ),
                   Row(
                     children: <Widget>[
@@ -155,9 +156,12 @@ class ProfileScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   Text(
                     ai.isLive
-                        ? 'Photos you analyze are sent to the Gemini API. '
-                            'Nothing else about you is sent, and no response '
-                            'is stored remotely by this app.'
+                        ? 'Clothing photos are sent to Gemini for item '
+                            'analysis. Outfit requests send candidate clothing '
+                            'details, occasion, style preferences and weather '
+                            'for Gemini to choose and explain a suggestion. '
+                            'Your name, email and other account details are '
+                            'not sent.'
                         : 'Pass --dart-define=GEMINI_API_KEY=... at run time '
                             'to enable real analysis. See the README.',
                     style: theme.textTheme.bodySmall?.copyWith(

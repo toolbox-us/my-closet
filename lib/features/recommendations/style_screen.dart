@@ -69,13 +69,12 @@ class StyleScreen extends ConsumerWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 24),
           const SectionHeader(
             title: 'Get a recommendation',
-            subtitle: 'Scored by rules you can inspect.',
+            subtitle:
+                'Gemini picks from outfits scored by rules you can inspect.',
           ),
-
           _ActionTile(
             icon: Icons.auto_awesome,
             title: 'What should I wear?',
@@ -98,7 +97,6 @@ class StyleScreen extends ConsumerWidget {
                 : '${outfits.length} saved',
             onTap: () => context.push(Routes.savedOutfits),
           ),
-
           const SizedBox(height: 28),
           SectionHeader(
             title: 'Start from an item',
@@ -106,7 +104,6 @@ class StyleScreen extends ConsumerWidget {
                 ? 'Favorite a few items for quick access here.'
                 : 'Build an outfit around something you like.',
           ),
-
           if (favorites.isEmpty)
             AppCard(
               onTap: () => context.go(Routes.wardrobe),

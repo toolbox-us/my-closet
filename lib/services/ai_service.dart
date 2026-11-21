@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
+import '../models/ai_outfit_advice.dart';
 import '../models/ai_suggestion.dart';
+import '../models/recommendation.dart';
 
-/// Clothing analysis.
+/// Gemini-powered clothing analysis and outfit advice.
 ///
 /// The one interface in the app that reaches a real external service. Two
 /// implementations exist:
@@ -20,6 +22,15 @@ abstract class AiService {
     Uint8List imageBytes, {
     String mimeType = 'image/jpeg',
   });
+
+  /// Selects and explains one of the locally generated outfit candidates.
+  ///
+  /// The signature must match one of [candidates]; Gemini cannot invent
+  /// wardrobe items or return an outfit that the local engine did not build.
+  Future<AiOutfitAdvice> recommendOutfit(
+    RecommendationRequest request,
+    List<ScoredOutfit> candidates,
+  );
 
   /// Whether this implementation talks to a real model. Surfaced in the UI so
   /// the label never claims more than it should.

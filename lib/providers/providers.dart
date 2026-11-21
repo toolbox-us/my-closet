@@ -72,8 +72,9 @@ final Provider<PlannerRepository> plannerRepositoryProvider =
 // Services
 // =============================================================================
 
-/// The real Gemini service is always selected. Without a configured key or
-/// when a request fails, it reports an error instead of returning mock data.
+/// The real Gemini service is always selected for garment analysis and outfit
+/// advice. Without a configured key or when a request fails, it reports an
+/// error instead of returning mock data.
 final Provider<AiService> aiServiceProvider = Provider<AiService>((ref) {
   final http.Client client = http.Client();
   ref.onDispose(client.close);

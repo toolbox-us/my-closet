@@ -172,7 +172,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('test-model'), findsOneWidget);
-    expect(find.textContaining('Only the image is sent'), findsOneWidget);
+    expect(find.textContaining('only the image is sent'), findsOneWidget);
+    expect(find.textContaining('candidate garment details'), findsNWidgets(2));
     expect(find.textContaining('This step is optional'), findsOneWidget);
     expect(find.text('Not now'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
