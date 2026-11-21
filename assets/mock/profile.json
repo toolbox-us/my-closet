@@ -1,0 +1,20 @@
+{
+  "name": "",
+  "email": "",
+  "phone": "",
+  "location": "",
+  "genderPreference": "Menswear",
+  "preferredStyles": ["Business Casual", "Smart Casual", "Minimalist"],
+  "favoriteColors": ["Navy", "White", "Grey", "Beige"],
+  "avoidedColors": ["Orange", "Yellow"],
+  "preferredBrands": ["Uniqlo", "Everlane", "Patagonia"],
+  "hobbies": ["Office", "Gym", "Hiking", "Travel"],
+  "sizes": {
+    "Shirt": "M",
+    "T-Shirt": "M",
+    "Pants": "32",
+    "Jacket": "40R",
+    "Shoes": "10"
+  },
+  "onboardingComplete": false
+}

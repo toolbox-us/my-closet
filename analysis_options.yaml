@@ -1,0 +1,16 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    avoid_print: true
+    prefer_const_constructors: true
+    prefer_final_locals: true
+
+analyzer:
+  errors:
+    # Keep the prototype buildable while still surfacing real problems.
+    todo: ignore
+  exclude:
+    - build/**
+    - android/**

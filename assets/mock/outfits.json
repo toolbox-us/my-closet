@@ -1,0 +1,117 @@
+[
+  {
+    "id": "seed_outfit_monday_office",
+    "name": "Monday Office",
+    "items": {
+      "top": "seed_top_blue_oxford",
+      "bottom": "seed_bottom_beige_chinos",
+      "footwear": "seed_shoe_brown_loafers",
+      "outerwear": "seed_outer_navy_blazer",
+      "accessory": "seed_acc_brown_watch"
+    },
+    "occasion": "Work",
+    "style": "Business Casual",
+    "favorite": true,
+    "createdAt": "2026-10-05T09:00:00.000Z",
+    "lastWorn": "2026-11-17T08:00:00.000Z",
+    "timesWorn": 4
+  },
+  {
+    "id": "seed_outfit_weekend_easy",
+    "name": "Weekend Easy",
+    "items": {
+      "top": "seed_top_black_tee",
+      "bottom": "seed_bottom_dark_jeans",
+      "footwear": "seed_shoe_white_sneakers",
+      "outerwear": "seed_outer_denim_jacket"
+    },
+    "occasion": "Casual",
+    "style": "Casual",
+    "favorite": true,
+    "createdAt": "2026-10-11T09:00:00.000Z",
+    "lastWorn": "2026-11-20T08:00:00.000Z",
+    "timesWorn": 7
+  },
+  {
+    "id": "seed_outfit_interview",
+    "name": "Interview Day",
+    "items": {
+      "top": "seed_top_white_oxford",
+      "bottom": "seed_bottom_black_trousers",
+      "footwear": "seed_shoe_black_oxfords",
+      "outerwear": "seed_outer_navy_blazer",
+      "accessory": "seed_acc_black_belt"
+    },
+    "occasion": "Interview",
+    "style": "Formal",
+    "favorite": false,
+    "createdAt": "2026-10-02T09:00:00.000Z",
+    "lastWorn": "2026-10-10T08:00:00.000Z",
+    "timesWorn": 1
+  },
+  {
+    "id": "seed_outfit_rainy_commute",
+    "name": "Rainy Commute",
+    "items": {
+      "top": "seed_top_grey_merino",
+      "bottom": "seed_bottom_navy_chinos",
+      "footwear": "seed_shoe_white_sneakers",
+      "outerwear": "seed_outer_rain_jacket",
+      "accessory": "seed_acc_tote"
+    },
+    "occasion": "Work",
+    "style": "Smart Casual",
+    "favorite": false,
+    "createdAt": "2026-11-01T09:00:00.000Z",
+    "lastWorn": "2026-11-08T08:00:00.000Z",
+    "timesWorn": 2
+  },
+  {
+    "id": "seed_outfit_dinner_out",
+    "name": "Dinner Out",
+    "items": {
+      "top": "seed_top_navy_linen",
+      "bottom": "seed_bottom_beige_chinos",
+      "footwear": "seed_shoe_suede_chelsea",
+      "accessory": "seed_acc_brown_watch"
+    },
+    "occasion": "Dinner",
+    "style": "Smart Casual",
+    "favorite": false,
+    "createdAt": "2026-09-20T09:00:00.000Z",
+    "lastWorn": null,
+    "timesWorn": 0
+  },
+  {
+    "id": "seed_outfit_trail_day",
+    "name": "Trail Day",
+    "items": {
+      "top": "seed_top_olive_flannel",
+      "bottom": "seed_bottom_hiking_pants",
+      "footwear": "seed_shoe_trail_runners",
+      "outerwear": "seed_outer_rain_jacket"
+    },
+    "occasion": "Hiking",
+    "style": "Outdoor",
+    "favorite": false,
+    "createdAt": "2026-09-06T09:00:00.000Z",
+    "lastWorn": "2026-09-06T08:00:00.000Z",
+    "timesWorn": 1
+  },
+  {
+    "id": "seed_outfit_office_dress",
+    "name": "Office Dress",
+    "items": {
+      "dress": "seed_dress_black_sheath",
+      "footwear": "seed_shoe_black_oxfords",
+      "outerwear": "seed_outer_grey_coat",
+      "accessory": "seed_acc_brown_watch"
+    },
+    "occasion": "Work",
+    "style": "Business Casual",
+    "favorite": false,
+    "createdAt": "2026-10-03T09:00:00.000Z",
+    "lastWorn": "2026-10-03T08:00:00.000Z",
+    "timesWorn": 1
+  }
+]

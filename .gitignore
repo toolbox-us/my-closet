@@ -1,0 +1,27 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Platform scaffolding is generated locally - see README step 2.
+# Remove these lines if you decide to commit platform folders.
+/android/
+/ios/
+/web/
+/macos/
+/linux/
+/windows/
+
+# SECRETS - never commit API keys
+.env
+*.env
+!.env.example
+run_local.sh

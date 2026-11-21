@@ -1,0 +1,48 @@
+name: my_closet
+description: "My Closet - AI-assisted virtual wardrobe and outfit recommender."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+# Version ranges are deliberately permissive rather than pinned.
+# The resolver picks versions compatible with whatever Flutter SDK you have
+# installed; the code only uses APIs that are stable across these ranges.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: '>=1.0.6 <2.0.0'
+
+  # State management
+  flutter_riverpod: '>=2.5.0 <3.0.0'
+
+  # Navigation
+  go_router: '>=13.0.0 <20.0.0'
+
+  # Persistence.
+  # hive_ce is the maintained community continuation of Hive v2.
+  # The original `hive` package is abandoned - do not substitute it.
+  hive_ce: '>=2.0.0 <3.0.0'
+  path_provider: '>=2.1.0 <3.0.0'
+  shared_preferences: '>=2.2.0 <3.0.0'
+
+  # AI integration (Gemini REST)
+  http: '>=1.1.0 <2.0.0'
+
+  # Photos
+  image_picker: '>=1.0.0 <2.0.0'
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: '>=4.0.0 <7.0.0'
+
+# No build_runner / freezed / json_serializable.
+# Models are hand-written so the project compiles with `flutter pub get`
+# alone, with no code-generation step. See README.
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/mock/
